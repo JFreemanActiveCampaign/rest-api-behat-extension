@@ -73,7 +73,7 @@ class RestApiContext implements Context, SnippetAcceptingContext
     /**
      * @return ResponseInterface
      */
-    private function getResponse()
+    public function getResponse()
     {
         return $this->restApiBrowser->getResponse();
     }
@@ -134,7 +134,7 @@ class RestApiContext implements Context, SnippetAcceptingContext
     /**
      * @return RequestInterface
      */
-    private function getRequest()
+    public function getRequest()
     {
         return $this->restApiBrowser->getRequest();
     }
