@@ -19,14 +19,14 @@ class RestApiBrowser extends atoum
     {
         $this
             ->given(
-                $httpClient = $this->mockHttpClient(200)
+                $httpClient = $this->mockHttpClient('http://verylastroom.com', 200)
             )
-            ->and($sut = new SUT('http://verylastroom.com', $httpClient))
+            ->and($sut = new SUT(null, null, $httpClient))
         ;
 
         foreach ($addHeadersSteps as $addHeadersStep) {
             foreach($addHeadersStep as $headerName => $headerValue) {
-                $sut->addRequestHeader($headerName, $headerValue);
+                $this->and($sut->addRequestHeader($headerName, $headerValue));
             }
         }
 
@@ -40,7 +40,7 @@ class RestApiBrowser extends atoum
         return [
             [[], []],
             [[["name" => "value"]], ["name" => "value"]],
-            [[["name" => "value"], ["name" => "value2"]], ["name" => "value, value2"]],
+            [[["name" => "value"], ["name" => "value2"]], ["name" => ["value", "value2"]]],
         ];
     }
 
@@ -52,9 +52,9 @@ class RestApiBrowser extends atoum
     {
         $this
             ->given(
-                $httpClient = $this->mockHttpClient(200)
+                $httpClient = $this->mockHttpClient('http://verylastroom.com', 200)
             )
-            ->and($sut = new SUT('http://verylastroom.com', $httpClient))
+            ->and($sut = new SUT(null, null, $httpClient))
         ;
 
         foreach ($setHeadersSteps as $addHeadersStep) {
@@ -86,8 +86,8 @@ class RestApiBrowser extends atoum
     public function test_create_request_with_slashes_to_clean($baseUrl, $stepUrl, $expectedUrl)
     {
         // Given
-        $mockHttpClient = $this->mockHttpClient(200);
-        $restApiContext = new SUT($baseUrl, $mockHttpClient);
+        $mockHttpClient = $this->mockHttpClient($baseUrl, 200, []);
+        $restApiContext = new SUT(null, null, $mockHttpClient);
         // When
         $restApiContext->sendRequest('GET', $stepUrl);
         // Then
@@ -129,9 +129,9 @@ class RestApiBrowser extends atoum
     public function test_get_return_the_response_we_expected($statusCode, array $responseHeaders)
     {
         // Given
-        $mockHttpClient = $this->mockHttpClient($statusCode, $responseHeaders);
+        $mockHttpClient = $this->mockHttpClient('http://verylastroom.com', $statusCode, $responseHeaders);
 
-        $restApiContext = new SUT('http://verylastroom.com', $mockHttpClient);
+        $restApiContext = new SUT(null, null, $mockHttpClient);
 
         // When
         $restApiContext->sendRequest('GET', 'http://verylastroom.com/');
@@ -163,24 +163,52 @@ class RestApiBrowser extends atoum
     }
 
     /**
+     * @dataProvider formDataUseCase
+     */
+    public function test_we_can_send_body_as_form_data($formData, $expectedBody)
+    {
+        $this
+            ->given(
+                $mockHttpAdapter = $this->mockHttpClient('http://verylastroom.com', 200, []),
+                $restApiBrowser = new SUT(null, null, $mockHttpAdapter)
+            )
+            ->when(
+                $restApiBrowser->sendRequest('POST', '/api', $formData)
+            )
+            ->then
+                ->castToString($mockHttpAdapter->getReceivedRequests()[0]->getBody())
+                    ->isEqualTo($expectedBody)
+        ;
+    }
+
+    public function formDataUseCase()
+    {
+        return [
+            [[], ''],
+            [['username' => 'jean-marc'], 'username=jean-marc'],
+            [['username' => 'jean-marc', 'password' => 'ecureuil'], 'username=jean-marc&password=ecureuil'],
+        ];
+    }
+
+    /**
      * @param string $baseUrl
      * @param int $responseStatusCode
      * @param array $headers
      *
      * @return \Ivory\HttpAdapter\HttpAdapterInterface
      */
-    private function mockHttpClient($responseStatusCode, array $headers = [])
+    private function mockHttpClient($baseUrl, $responseStatusCode, array $headers = [])
     {
-        $mockHttpClient = new \Http\Mock\Client;
-        $messageFactory = new \Http\Message\MessageFactory\GuzzleMessageFactory;
-        $mockHttpClient->addResponse(
+        $mockHttpClient = new \Ivory\HttpAdapter\MockHttpAdapter();
+        $mockHttpClient->getConfiguration()->setBaseUri($baseUrl);
+        $messageFactory = new \Ivory\HttpAdapter\Message\MessageFactory($baseUrl);
+        $mockHttpClient->appendResponse(
             $messageFactory->createResponse(
                 $responseStatusCode,
-                null,
+                \Ivory\HttpAdapter\Message\RequestInterface::PROTOCOL_VERSION_1_1,
                 $headers
             )
         );
-
         return $mockHttpClient;
     }
 }
