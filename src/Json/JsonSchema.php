@@ -4,24 +4,39 @@ namespace Rezzza\RestApiBehatExtension\Json;
 
 use JsonSchema\RefResolver;
 use JsonSchema\Validator;
+use JsonSchema\Uri\UriRetriever;
 
-class JsonSchema
+class JsonSchema extends Json
 {
-    private $filename;
+    private $uri;
 
     /**
-     * @param string $filename
+     * @param string $uri
      */
-    public function __construct($filename)
+    public function __construct($content, $uri = null)
     {
-        $this->filename = $filename;
+        $this->uri = $uri;
+        parent::__construct($content);
     }
 
-    public function validate(Json $json, Validator $validator, RefResolver $refResolver)
+    public function resolve(RefResolver $resolver)
     {
-        $schema = $refResolver->resolve('file://' . realpath($this->filename));
+        if (!$this->hasUri()) {
+            throw new \LogicException('Cannot resolve JsonSchema without uri parameter');
+        }
 
-        $validator->check($json->getRawContent(), $schema);
+        $resolver->resolve($this->getRawContent(), $this->uri);
+
+        return $this;
+    }
+
+    public function validate(Json $json, Validator $validator)
+    {
+        if ($this->hasUri()) {
+            $this->resolve(new RefResolver(new UriRetriever));
+        }
+
+        $validator->check($json->getRawContent(), $this->getRawContent());
 
         if (!$validator->isValid()) {
             $msg = "JSON does not validate. Violations:" . PHP_EOL;
@@ -32,5 +47,10 @@ class JsonSchema
         }
 
         return true;
+    }
+
+    private function hasUri()
+    {
+        return null !== $this->uri;
     }
 }
